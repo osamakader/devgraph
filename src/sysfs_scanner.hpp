@@ -12,6 +12,13 @@ struct ScanOptions {
     std::filesystem::path sysfs_root = "/sys/devices";
     std::filesystem::path devicetree_root = "/sys/firmware/devicetree/base";
     bool include_devicetree = true;
+
+    // True when sysfs_root is a caller-narrowed subtree (e.g. --root) rather
+    // than the full device tree's natural scope. When set, device-tree-only
+    // nodes are only synthesized once merging has descended through a real
+    // match, so unrelated DT branches outside the scanned subtree (siblings
+    // like "cpus"/"memory" of a scoped "soc") don't get pulled in.
+    bool scoped_root = false;
 };
 
 struct ScanResult {

@@ -188,8 +188,7 @@ ScanResult scan(const ScanOptions& options) {
         if (auto dt_root = scan_devicetree(options.devicetree_root)) {
             std::map<std::string, DeviceNode*> of_map;
             collect_of_node_map(result.root.get(), of_map);
-            bool unscoped = options.sysfs_root.lexically_normal() == ScanOptions{}.sysfs_root.lexically_normal();
-            merge_dt_children(dt_root.get(), result.root.get(), of_map, unscoped);
+            merge_dt_children(dt_root.get(), result.root.get(), of_map, !options.scoped_root);
         }
     }
 

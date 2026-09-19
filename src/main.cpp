@@ -35,6 +35,7 @@ const std::vector<std::string> kDefaultNoiseSubsystems = {"event_source", "machi
 
 struct CliOptions {
     std::filesystem::path root = "/sys/devices";
+    bool root_explicit = false;
     Format format = Format::Tree;
     FilterOptions filter;
     RenderOptions render;
@@ -98,6 +99,7 @@ std::optional<CliOptions> parse_args(int argc, char** argv) {
             std::exit(0);
         } else if (arg == "-r" || arg == "--root") {
             opts.root = next_value(arg.c_str());
+            opts.root_explicit = true;
         } else if (arg == "-f" || arg == "--format") {
             std::string v = next_value(arg.c_str());
             if (v == "tree") {
@@ -186,6 +188,7 @@ int main(int argc, char** argv) {
     ScanOptions scan_opts;
     scan_opts.sysfs_root = opts.root;
     scan_opts.include_devicetree = !opts.no_devicetree;
+    scan_opts.scoped_root = opts.root_explicit;
 
     ScanResult result = scan(scan_opts);
     apply_filter(result.root.get(), opts.filter);
