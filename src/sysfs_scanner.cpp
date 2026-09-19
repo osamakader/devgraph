@@ -133,14 +133,24 @@ void collect_of_node_map(DeviceNode* node, std::map<std::string, DeviceNode*>& o
 // Merges device-tree nodes that have no corresponding bound sysfs device
 // (disabled nodes, nodes with no driver, nodes the kernel doesn't
 // instantiate a struct device for) into the tree as synthetic entries.
-void merge_dt_children(DtNode* dt, DeviceNode* attach_point, std::map<std::string, DeviceNode*>& of_map) {
+//
+// `allow_synthetic` gates whether unmatched nodes may be attached here.
+// It starts false for a scoped scan (sysfs_root narrower than the DT
+// root's natural scope), since of_map only contains anchors found under
+// sysfs_root -- an unmatched top-level DT node there could just as
+// easily be scanner-unrelated hardware (e.g. "cpus", "memory") as it
+// could be genuinely-unbound hardware under the scoped subtree. Once we
+// descend through a real match (found != of_map.end()), we know we're
+// inside the scoped subtree, so it flips true for all descendants.
+void merge_dt_children(DtNode* dt, DeviceNode* attach_point, std::map<std::string, DeviceNode*>& of_map,
+                        bool allow_synthetic) {
     for (auto& child : dt->children) {
         auto found = of_map.find(child->path);
         if (found != of_map.end()) {
-            merge_dt_children(child.get(), found->second, of_map);
+            merge_dt_children(child.get(), found->second, of_map, true);
             continue;
         }
-        if (!child->compatible.empty()) {
+        if (!child->compatible.empty() && allow_synthetic) {
             auto node = std::make_unique<DeviceNode>();
             node->sysfs_path = "";
             node->name = child->name;
@@ -152,12 +162,14 @@ void merge_dt_children(DtNode* dt, DeviceNode* attach_point, std::map<std::strin
             node->parent = attach_point;
             DeviceNode* child_ptr = node.get();
             attach_point->children.push_back(std::move(node));
-            merge_dt_children(child.get(), child_ptr, of_map);
+            merge_dt_children(child.get(), child_ptr, of_map, true);
         } else {
-            // Pure container node (e.g. "soc", "cpus") with no device of
-            // its own: flatten through so real descendants still attach
-            // to the nearest actual (or synthetic) device ancestor.
-            merge_dt_children(child.get(), attach_point, of_map);
+            // Either a pure container node (e.g. "soc", "cpus") with no
+            // device of its own, or a device node we can't place yet
+            // because it fell outside the scoped scan. Keep recursing
+            // without attaching, in case a deeper descendant is a real
+            // match, but don't synthesize anything until one is found.
+            merge_dt_children(child.get(), attach_point, of_map, allow_synthetic);
         }
     }
 }
@@ -176,7 +188,8 @@ ScanResult scan(const ScanOptions& options) {
         if (auto dt_root = scan_devicetree(options.devicetree_root)) {
             std::map<std::string, DeviceNode*> of_map;
             collect_of_node_map(result.root.get(), of_map);
-            merge_dt_children(dt_root.get(), result.root.get(), of_map);
+            bool unscoped = options.sysfs_root.lexically_normal() == ScanOptions{}.sysfs_root.lexically_normal();
+            merge_dt_children(dt_root.get(), result.root.get(), of_map, unscoped);
         }
     }
 
