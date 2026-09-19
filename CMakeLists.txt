@@ -18,6 +18,7 @@ add_executable(devgraph
     src/sysfs_scanner.cpp
     src/devicetree.cpp
     src/devnode_index.cpp
+    src/hwid_db.cpp
     src/filter.cpp
     src/render_tree.cpp
     src/render_list.cpp

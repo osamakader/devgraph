@@ -6,9 +6,11 @@
 #include "sysfs_scanner.hpp"
 #include "util.hpp"
 
+#include <algorithm>
 #include <iostream>
 #include <optional>
 #include <string>
+#include <strings.h>
 #include <vector>
 
 namespace {
@@ -17,12 +19,20 @@ using namespace devgraph;
 
 enum class Format { Tree, List, Dot };
 
+// Subsystems that are instrumentation/bookkeeping rather than hardware
+// (perf PMU pseudo-devices, etc.), hidden by default alongside the
+// virtual-path filter. Kept short and specific: the user can always add
+// more with --exclude-subsystem, or bring these back with --show-noise.
+const std::vector<std::string> kDefaultNoiseSubsystems = {"event_source", "machinecheck", "clockevents",
+                                                            "clocksource", "wakeup"};
+
 struct CliOptions {
     std::filesystem::path root = "/sys/devices";
     Format format = Format::Tree;
     FilterOptions filter;
     RenderOptions render;
     bool no_devicetree = false;
+    bool show_noise = false;
 };
 
 void print_usage(const char* argv0) {
@@ -43,10 +53,17 @@ void print_usage(const char* argv0) {
         "                          (comma-separated, e.g. i2c,spi,usb,pci)\n"
         "  -d, --driver NAME      Only show devices bound to driver NAME\n"
         "      --with-devnode     Only show devices that have a /dev node\n"
+        "      --show-virtual     Include virtual/software devices (loop,\n"
+        "                          ram, dm, tty*, bdi, ...); hidden by default\n"
+        "  -x, --exclude-subsystem LIST\n"
+        "                          Hide additional subsystems (comma-separated),\n"
+        "                          on top of the default noise list (event_source)\n"
+        "      --show-noise       Don't hide the default noise subsystems\n"
         "      --no-devicetree    Skip merging in device-tree-only nodes\n"
         "      --no-driver        Hide driver annotations\n"
         "      --no-devnode       Hide /dev node annotations\n"
         "      --no-compatible    Hide device-tree compatible annotations\n"
+        "      --no-product       Hide resolved PCI/USB product names\n"
         "      --no-color         Disable ANSI colors\n"
         "  -h, --help             Show this help\n"
         "\n"
@@ -92,6 +109,13 @@ std::optional<CliOptions> parse_args(int argc, char** argv) {
             opts.filter.driver = next_value(arg.c_str());
         } else if (arg == "--with-devnode") {
             opts.filter.only_with_devnode = true;
+        } else if (arg == "--show-virtual") {
+            opts.filter.hide_virtual = false;
+        } else if (arg == "-x" || arg == "--exclude-subsystem") {
+            auto extra = util::split(next_value(arg.c_str()), ',');
+            opts.filter.exclude_subsystems.insert(opts.filter.exclude_subsystems.end(), extra.begin(), extra.end());
+        } else if (arg == "--show-noise") {
+            opts.show_noise = true;
         } else if (arg == "--no-devicetree") {
             opts.no_devicetree = true;
         } else if (arg == "--no-driver") {
@@ -100,6 +124,8 @@ std::optional<CliOptions> parse_args(int argc, char** argv) {
             opts.render.show_devnode = false;
         } else if (arg == "--no-compatible") {
             opts.render.show_compatible = false;
+        } else if (arg == "--no-product") {
+            opts.render.show_product = false;
         } else if (arg == "--no-color") {
             opts.render.use_color = false;
         } else {
@@ -125,6 +151,30 @@ int main(int argc, char** argv) {
         std::cerr << "devgraph: root path '" << opts.root.string() << "' is not a directory\n";
         return 1;
     }
+
+    // If the caller explicitly scoped into the virtual subtree, showing
+    // nothing because of the default virtual-hiding filter would be a
+    // surprising result -- assume they mean it.
+    for (const auto& part : opts.root) {
+        if (part == "virtual") {
+            opts.filter.hide_virtual = false;
+            break;
+        }
+    }
+
+    if (!opts.show_noise) {
+        opts.filter.exclude_subsystems.insert(opts.filter.exclude_subsystems.end(), kDefaultNoiseSubsystems.begin(),
+                                               kDefaultNoiseSubsystems.end());
+    }
+    // Explicitly asking for a subsystem overrides it being on the
+    // (default or user-supplied) exclude list.
+    auto is_explicitly_included = [&](const std::string& subsystem) {
+        return std::any_of(opts.filter.subsystems.begin(), opts.filter.subsystems.end(), [&](const std::string& s) {
+            return strcasecmp(s.c_str(), subsystem.c_str()) == 0;
+        });
+    };
+    auto& excluded = opts.filter.exclude_subsystems;
+    excluded.erase(std::remove_if(excluded.begin(), excluded.end(), is_explicitly_included), excluded.end());
 
     ScanOptions scan_opts;
     scan_opts.sysfs_root = opts.root;

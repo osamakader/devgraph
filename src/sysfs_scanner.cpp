@@ -1,6 +1,7 @@
 #include "sysfs_scanner.hpp"
 
 #include "devnode_index.hpp"
+#include "hwid_db.hpp"
 #include "util.hpp"
 
 #include <algorithm>
@@ -39,11 +40,21 @@ std::vector<fs::path> sorted_subdirs(const fs::path& dir) {
     return out;
 }
 
+bool has_virtual_component(const fs::path& p) {
+    for (const auto& part : p) {
+        if (part == "virtual") {
+            return true;
+        }
+    }
+    return false;
+}
+
 void fill_device_fields(DeviceNode& node, const fs::path& dir) {
     node.sysfs_path = dir.string();
     node.name = dir.filename().string();
     node.subsystem = util::read_link_basename(dir / "subsystem").value_or("");
     node.driver = util::read_link_basename(dir / "driver").value_or("");
+    node.is_virtual = has_virtual_component(dir);
 
     auto uevent = util::parse_uevent(dir / "uevent");
     for (const auto& [key, value] : uevent) {
@@ -66,6 +77,26 @@ void fill_device_fields(DeviceNode& node, const fs::path& dir) {
             if (!list.empty()) {
                 node.of_compatible = list.front();
             }
+        }
+    }
+
+    auto read_hex_attr = [&](const char* attr) -> std::optional<uint16_t> {
+        auto text = util::read_attr(dir / attr);
+        return text ? parse_hex_id(*text) : std::nullopt;
+    };
+
+    const auto& db = HwIdDb::instance();
+    if (node.subsystem == "pci") {
+        auto vendor = read_hex_attr("vendor");
+        auto device = read_hex_attr("device");
+        if (vendor && device) {
+            node.product_name = db.pci_device_name(*vendor, *device).value_or("");
+        }
+    } else if (node.subsystem == "usb") {
+        auto vendor = read_hex_attr("idVendor");
+        auto product = read_hex_attr("idProduct");
+        if (vendor && product) {
+            node.product_name = db.usb_device_name(*vendor, *product).value_or("");
         }
     }
 }

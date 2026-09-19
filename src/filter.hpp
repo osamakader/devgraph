@@ -13,8 +13,19 @@ struct FilterOptions {
     std::optional<std::string> driver;
     bool only_with_devnode = false;
 
-    bool empty() const {
-        return subsystems.empty() && !driver.has_value() && !only_with_devnode;
+    // Devices under .../devices/virtual/... (loop, ram, dm, tty*, bdi, ...)
+    // are software constructs, not real hardware topology; hidden unless
+    // the caller explicitly asks to see them.
+    bool hide_virtual = true;
+
+    // Subsystems to drop outright (whole subtree), regardless of the
+    // virtual check above -- e.g. "event_source" (perf PMU pseudo-devices
+    // like uncore_*/tracepoint/uprobe), which live outside /virtual but
+    // are still instrumentation, not hardware.
+    std::vector<std::string> exclude_subsystems;
+
+    bool has_positive_filter() const {
+        return !subsystems.empty() || driver.has_value() || only_with_devnode;
     }
 };
 

@@ -45,6 +45,9 @@ std::string label_for(const DeviceNode& node) {
     if (!node.subsystem.empty() && node.subsystem != "root") {
         label << "\n[" << node.subsystem << "]";
     }
+    if (!node.product_name.empty()) {
+        label << "\n" << node.product_name;
+    }
     if (!node.driver.empty()) {
         label << "\ndriver: " << node.driver;
     }

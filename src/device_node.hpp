@@ -16,6 +16,7 @@ struct DeviceNode {
     std::string driver;        // bound driver name, empty if unbound
     std::string modalias;      // MODALIAS= from uevent, if present
     std::string devtype;       // DEVTYPE= from uevent, if present
+    std::string product_name;  // human-readable name from pci.ids/usb.ids, if resolved
 
     std::string of_node_path;    // resolved /sys/firmware/devicetree/base/... path
     std::string of_compatible;   // first "compatible" string from the DT node
@@ -27,6 +28,8 @@ struct DeviceNode {
 
     bool dt_only = false;   // true if this node has no bound sysfs device
     std::string dt_status;  // device-tree "status" property, for dt_only nodes
+
+    bool is_virtual = false; // true if this lives under .../devices/virtual/...
 
     bool visible = true; // used by filtering to prune subtrees for rendering
 };

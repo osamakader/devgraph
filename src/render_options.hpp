@@ -7,6 +7,7 @@ struct RenderOptions {
     bool show_driver = true;
     bool show_devnode = true;
     bool show_compatible = true;
+    bool show_product = true;
     bool use_color = true;
 };
 

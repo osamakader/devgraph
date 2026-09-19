@@ -15,6 +15,7 @@ constexpr const char* kDriver = "\033[32m";     // green
 constexpr const char* kDevnode = "\033[33m";    // yellow
 constexpr const char* kUnbound = "\033[2;31m";  // dim red
 constexpr const char* kCompatible = "\033[35m"; // magenta
+constexpr const char* kProduct = "\033[34m";    // blue
 } // namespace color
 
 inline std::string colorize(const RenderOptions& opts, const char* code, const std::string& text) {
@@ -37,6 +38,9 @@ inline std::string build_label(const DeviceNode& node, const RenderOptions& opts
 
     if (opts.show_subsystem && !node.subsystem.empty() && node.subsystem != "root") {
         out << " [" << colorize(opts, color::kSubsystem, node.subsystem) << "]";
+    }
+    if (opts.show_product && !node.product_name.empty()) {
+        out << " \"" << colorize(opts, color::kProduct, node.product_name) << "\"";
     }
     if (opts.show_driver && !node.driver.empty()) {
         out << " driver=" << colorize(opts, color::kDriver, node.driver);
