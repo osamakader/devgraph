@@ -19,12 +19,19 @@ using namespace devgraph;
 
 enum class Format { Tree, List, Dot };
 
-// Subsystems that are instrumentation/bookkeeping rather than hardware
-// (perf PMU pseudo-devices, etc.), hidden by default alongside the
-// virtual-path filter. Kept short and specific: the user can always add
-// more with --exclude-subsystem, or bring these back with --show-noise.
+// Subsystems (or, for pseudo-bus containers with no subsystem of their
+// own, device names) that are instrumentation/bookkeeping rather than
+// hardware, hidden by default alongside the virtual-path filter. Kept
+// short and specific: the user can always add more with
+// --exclude-subsystem, or bring these back with --show-noise.
+//
+// "serial8250" hides the legacy ISA UART prober's device by name: on a
+// PC it unconditionally registers 32 ttyS0-31 ports whether or not any
+// hardware backs them. It never fires on embedded/DT systems, where a
+// real UART shows up as its own distinctly-named platform/DT device
+// instead of under this generic x86 stub.
 const std::vector<std::string> kDefaultNoiseSubsystems = {"event_source", "machinecheck", "clockevents",
-                                                            "clocksource", "wakeup"};
+                                                            "clocksource", "wakeup",       "serial8250"};
 
 struct CliOptions {
     std::filesystem::path root = "/sys/devices";
