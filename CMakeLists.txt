@@ -11,8 +11,7 @@ endif()
 
 add_compile_options(-Wall -Wextra)
 
-add_executable(devgraph
-    src/main.cpp
+add_library(devgraph_core STATIC
     src/util.cpp
     src/device_node.cpp
     src/sysfs_scanner.cpp
@@ -24,7 +23,14 @@ add_executable(devgraph
     src/render_list.cpp
     src/render_dot.cpp
 )
+target_include_directories(devgraph_core PUBLIC src)
 
-target_include_directories(devgraph PRIVATE src)
+add_executable(devgraph src/main.cpp)
+target_link_libraries(devgraph PRIVATE devgraph_core)
 
 install(TARGETS devgraph RUNTIME DESTINATION bin)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
