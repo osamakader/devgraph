@@ -39,23 +39,25 @@ std::string color_for_subsystem(const std::string& subsystem) {
     return std::to_string(hue) + ",0.35,0.95";
 }
 
-std::string label_for(const DeviceNode& node) {
+std::string label_for(const DeviceNode& node, const RenderOptions& opts) {
     std::ostringstream label;
     label << node.name;
-    if (!node.subsystem.empty() && node.subsystem != "root") {
+    if (opts.show_subsystem && !node.subsystem.empty() && node.subsystem != "root") {
         label << "\n[" << node.subsystem << "]";
     }
-    if (!node.product_name.empty()) {
+    if (opts.show_product && !node.product_name.empty()) {
         label << "\n" << node.product_name;
     }
-    if (!node.driver.empty()) {
+    if (opts.show_driver && !node.driver.empty()) {
         label << "\ndriver: " << node.driver;
     }
-    if (!node.of_compatible.empty()) {
+    if (opts.show_compatible && !node.of_compatible.empty()) {
         label << "\ncompatible: " << node.of_compatible;
     }
-    for (const auto& dev : node.devnodes) {
-        label << "\n" << dev;
+    if (opts.show_devnode) {
+        for (const auto& dev : node.devnodes) {
+            label << "\n" << dev;
+        }
     }
     if (node.dt_only) {
         label << "\n(unbound)";
@@ -63,12 +65,13 @@ std::string label_for(const DeviceNode& node) {
     return label.str();
 }
 
-void emit(std::ostream& out, const DeviceNode& node, std::unordered_map<const DeviceNode*, int>& ids, int& next_id) {
+void emit(std::ostream& out, const DeviceNode& node, const RenderOptions& opts,
+          std::unordered_map<const DeviceNode*, int>& ids, int& next_id) {
     int id = next_id++;
     ids[&node] = id;
 
     if (node.parent != nullptr) { // synthetic super-root has no node of its own
-        out << "  n" << id << " [label=\"" << escape(label_for(node)) << "\""
+        out << "  n" << id << " [label=\"" << escape(label_for(node, opts)) << "\""
             << " style=\"filled" << (node.dt_only ? ",dashed" : "") << "\""
             << " fillcolor=\"" << color_for_subsystem(node.subsystem) << "\"];\n";
     }
@@ -77,7 +80,7 @@ void emit(std::ostream& out, const DeviceNode& node, std::unordered_map<const De
         if (!child->visible) {
             continue;
         }
-        emit(out, *child, ids, next_id);
+        emit(out, *child, opts, ids, next_id);
         int child_id = ids[child.get()];
         if (node.parent != nullptr) {
             out << "  n" << id << " -> n" << child_id << ";\n";
@@ -89,14 +92,14 @@ void emit(std::ostream& out, const DeviceNode& node, std::unordered_map<const De
 
 } // namespace
 
-void render_dot(std::ostream& out, const DeviceNode& root, const RenderOptions&) {
+void render_dot(std::ostream& out, const DeviceNode& root, const RenderOptions& opts) {
     out << "digraph devgraph {\n";
     out << "  rankdir=LR;\n";
     out << "  node [shape=box, fontname=\"monospace\", fontsize=10];\n";
 
     std::unordered_map<const DeviceNode*, int> ids;
     int next_id = 0;
-    emit(out, root, ids, next_id);
+    emit(out, root, opts, ids, next_id);
 
     out << "}\n";
 }
